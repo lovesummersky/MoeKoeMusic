@@ -82,6 +82,8 @@
                         class="fas fa-add"></i></button>
                 <button class="extra-btn" :title="t('fen-xiang-ge-qu')" @click="share(currentSong.name, currentSong.hash)"><i
                         class="fas fa-share"></i></button>
+                <button class="extra-btn" title="下载" :disabled="isDownloading" @click="downloadCurrentSong"><i
+                        :class="isDownloading ? 'fas fa-spinner fa-spin' : 'fas fa-download'"></i></button>
                 <div class="playback-mode">
                     <button class="extra-btn" @click="togglePlaybackMode">
                         <i v-if="currentPlaybackModeIndex != '2'" :class="currentPlaybackMode.icon"
@@ -287,6 +289,7 @@ import FullscreenLyricsSettings from './FullscreenLyricsSettings.vue';
 import { useRouter } from 'vue-router';
 import { getCover, getAudioOutputDeviceSignature, share } from '../utils/utils';
 import { get } from '../utils/request';
+    import { downloadSongViaProxy } from '../utils/songDownload';
 import { createTeamEventPopup, actions as teamEventActions } from '@/utils/teamEvent';
 
 // 从统一入口导入所有模块
@@ -425,7 +428,37 @@ const switchQuality = async (option) => {
     }
 };
 
-// 初始化事件回调
+// 下载当前歌曲：经用户自己的 API 服务器中转，不直连 CDN
+    const isDownloading = ref(false);
+    const downloadCurrentSong = async () => {
+        const song = currentSong.value;
+        if (!song?.hash || isLocalSong(song) || song.isCloud) {
+            $message.error('这首歌暂不支持下载');
+            return;
+        }
+        if (isDownloading.value) return;
+        isDownloading.value = true;
+        try {
+            const isAuthenticated = !!MoeAuthStore().isAuthenticated;
+            await downloadSongViaProxy({
+                hash: song.hash,
+                playHash: song.playHash,
+                resolvedQuality: song.resolvedQuality,
+                isAuthenticated,
+                name: song.name,
+                author: song.author,
+                url: song.url,
+            });
+            $message.success('下载完成');
+        } catch (error) {
+            console.error('[PlayerControl] 下载失败:', error);
+            $message.error('下载失败，请稍后再试');
+        } finally {
+            isDownloading.value = false;
+        }
+    };
+    
+    // 初始化事件回调
 const onSongEnd = () => {
     // 自然播放结束：上报完整播放并结算会话
     tickListenSession(false);
