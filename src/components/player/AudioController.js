@@ -2,8 +2,11 @@ import { ref } from 'vue';
 
 export default function useAudioController({ onSongEnd, updateCurrentTime }) {
     const audio = new Audio();
-    // 设置 crossOrigin 以支持 Web Audio API 跨域访问
-    audio.crossOrigin = 'anonymous';
+    // 注意：不要设置 audio.crossOrigin = 'anonymous'。
+    // 酷狗 CDN 不返回 Access-Control-Allow-Origin，强制 CORS 加载会被浏览器
+    // 拒掉（音频错误 4 / NotSupportedError），所有歌曲都播不出声。
+    // 不设置 crossOrigin 时媒体仍可正常播放；响度规格化（默认关闭）需要
+    // Web Audio 读取媒体，失败时 initWebAudio 已有回退到原生播放的逻辑。
 
     const playing = ref(false);
     const isMuted = ref(false);
